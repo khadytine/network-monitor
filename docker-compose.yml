@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: network-monitor-db
+    environment:
+      POSTGRES_DB: network_monitor
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - monitor-network
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Main Network Monitor Instance
+  network-monitor-main:
+    build: .
+    container_name: network-monitor-main
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=network_monitor
+      - DB_USER=postgres
+      - DB_PASSWORD=password123
+      - DB_PORT=5432
+      - INSTANCE_ID=main
+      - INSTANCE_URL=http://network-monitor-main:5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - monitor-network
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+  # Secondary Monitor Instance 1
+  network-monitor-1:
+    build: .
+    container_name: network-monitor-1
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=network_monitor
+      - DB_USER=postgres
+      - DB_PASSWORD=password123
+      - DB_PORT=5432
+      - INSTANCE_ID=instance-1
+      - INSTANCE_URL=http://network-monitor-1:5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - monitor-network
+    ports:
+      - "5001:5000"
+    restart: unless-stopped
+
+  # Secondary Monitor Instance 2
+  network-monitor-2:
+    build: .
+    container_name: network-monitor-2
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=network_monitor
+      - DB_USER=postgres
+      - DB_PASSWORD=password123
+      - DB_PORT=5432
+      - INSTANCE_ID=instance-2
+      - INSTANCE_URL=http://network-monitor-2:5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - monitor-network
+    ports:
+      - "5002:5000"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  monitor-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
